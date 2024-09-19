@@ -228,6 +228,9 @@ class PolarsSeries:
 
         return PolarsDataFrame(result, backend_version=self._backend_version)
 
+    def to_physical(self):
+        return self._from_native_series(self._native_series.to_physical())
+
     @property
     def dt(self) -> PolarsSeriesDateTimeNamespace:
         return PolarsSeriesDateTimeNamespace(self)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from typing import cast
 
 from narwhals import dtypes
 from narwhals.dependencies import get_polars
@@ -58,7 +59,7 @@ def translate_dtype(dtype: Any) -> dtypes.DType:
     if dtype == pl.Categorical:
         return dtypes.Categorical()
     if dtype == pl.Enum:
-        return dtypes.Enum()
+        return dtypes.Enum(dtype.caterogies)
     if dtype == pl.Datetime:
         return dtypes.Datetime()
     if dtype == pl.Duration:
@@ -101,8 +102,8 @@ def narwhals_to_native_dtype(dtype: dtypes.DType | type[dtypes.DType]) -> Any:
     if dtype == dtypes.Categorical:
         return pl.Categorical()
     if dtype == dtypes.Enum:
-        msg = "Converting to Enum is not (yet) supported"
-        raise NotImplementedError(msg)
+        dtype = cast(dtypes.Enum, dtype)
+        return pl.Enum(dtype._categories)
     if dtype == dtypes.Datetime:
         return pl.Datetime()
     if dtype == dtypes.Duration:

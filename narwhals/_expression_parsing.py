@@ -189,6 +189,7 @@ def parse_into_expr(
     if isinstance(into_expr, str):
         return namespace.col(into_expr)
     if is_numpy_array(into_expr):
+        # return namespace._create_expr_from_series(into_expr)
         series = namespace._create_compliant_series(into_expr)
         return namespace._create_expr_from_series(series)  # type: ignore[arg-type]
     msg = (

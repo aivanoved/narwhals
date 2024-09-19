@@ -665,6 +665,17 @@ class PandasLikeSeries:
         result.name = native_series.name
         return self._from_native_series(result)
 
+    def to_physical(self):
+        native_series = self._native_series
+        result, _ = get_pandas().factorize(native_series)
+        return self._from_iterable(
+            result,
+            name="",
+            index=None,
+            implementation=self._implementation,
+            backend_version=self._backend_version,
+        )
+
     @property
     def str(self) -> PandasLikeSeriesStringNamespace:
         return PandasLikeSeriesStringNamespace(self)

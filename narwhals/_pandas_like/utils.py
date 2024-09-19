@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Iterable
 from typing import TypeVar
+from typing import cast
 
 from narwhals.dependencies import get_cudf
 from narwhals.dependencies import get_modin
 from narwhals.dependencies import get_pandas
 from narwhals.utils import Implementation
-from narwhals.utils import isinstance_or_issubclass
 
 T = TypeVar("T")
 
@@ -104,6 +104,26 @@ def create_native_series(
     return PandasLikeSeries(
         series, implementation=implementation, backend_version=backend_version
     )
+
+
+def create_df_from_native_series(
+    series: list[Any], *, implementation: Implementation, backend_version: tuple[int, ...]
+):
+    df_dict = {s.name: s for s in series}
+    if implementation is Implementation.PANDAS:
+        pd = get_pandas()
+
+        return pd.DataFrame(df_dict)  # pragma: no cover
+    if implementation is Implementation.CUDF:  # pragma: no cover
+        cudf = get_cudf()
+
+        return cudf.DataFrame(df_dict)  # pragma: no cover
+    if implementation is Implementation.MODIN:  # pragma: no cover
+        mpd = get_modin()
+
+        return mpd.DataFrame(df_dict)  # pragma: no cover
+    msg = f"Unknown implementation: {implementation}"  # pragma: no cover
+    raise TypeError(msg)  # pragma: no cover
 
 
 def horizontal_concat(
@@ -335,113 +355,115 @@ def narwhals_to_native_dtype(  # noqa: PLR0915
         raise TypeError(msg)
 
     dtype_backend = get_dtype_backend(starting_dtype, implementation)
-    if isinstance_or_issubclass(dtype, dtypes.Float64):
+    if dtype == dtypes.Float64:
         if dtype_backend == "pyarrow-nullable":
             return "Float64[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "Float64"
         else:
             return "float64"
-    if isinstance_or_issubclass(dtype, dtypes.Float32):
+    if dtype == dtypes.Float32:
         if dtype_backend == "pyarrow-nullable":
             return "Float32[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "Float32"
         else:
             return "float32"
-    if isinstance_or_issubclass(dtype, dtypes.Int64):
+    if dtype == dtypes.Int64:
         if dtype_backend == "pyarrow-nullable":
             return "Int64[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "Int64"
         else:
             return "int64"
-    if isinstance_or_issubclass(dtype, dtypes.Int32):
+    if dtype == dtypes.Int32:
         if dtype_backend == "pyarrow-nullable":
             return "Int32[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "Int32"
         else:
             return "int32"
-    if isinstance_or_issubclass(dtype, dtypes.Int16):
+    if dtype == dtypes.Int16:
         if dtype_backend == "pyarrow-nullable":
             return "Int16[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "Int16"
         else:
             return "int16"
-    if isinstance_or_issubclass(dtype, dtypes.Int8):
+    if dtype == dtypes.Int8:
         if dtype_backend == "pyarrow-nullable":
             return "Int8[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "Int8"
         else:
             return "int8"
-    if isinstance_or_issubclass(dtype, dtypes.UInt64):
+    if dtype == dtypes.UInt64:
         if dtype_backend == "pyarrow-nullable":
             return "UInt64[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "UInt64"
         else:
             return "uint64"
-    if isinstance_or_issubclass(dtype, dtypes.UInt32):
+    if dtype == dtypes.UInt32:
         if dtype_backend == "pyarrow-nullable":
             return "UInt32[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "UInt32"
         else:
             return "uint32"
-    if isinstance_or_issubclass(dtype, dtypes.UInt16):
+    if dtype == dtypes.UInt16:
         if dtype_backend == "pyarrow-nullable":
             return "UInt16[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "UInt16"
         else:
             return "uint16"
-    if isinstance_or_issubclass(dtype, dtypes.UInt8):
+    if dtype == dtypes.UInt8:
         if dtype_backend == "pyarrow-nullable":
             return "UInt8[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "UInt8"
         else:
             return "uint8"
-    if isinstance_or_issubclass(dtype, dtypes.String):
+    if dtype == dtypes.String:
         if dtype_backend == "pyarrow-nullable":
             return "string[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "string"
         else:
             return str
-    if isinstance_or_issubclass(dtype, dtypes.Boolean):
+    if dtype == dtypes.Boolean:
         if dtype_backend == "pyarrow-nullable":
             return "boolean[pyarrow]"
         if dtype_backend == "pandas-nullable":
             return "boolean"
         else:
             return "bool"
-    if isinstance_or_issubclass(dtype, dtypes.Categorical):
+    if dtype == dtypes.Categorical:
         # TODO(Unassigned): is there no pyarrow-backed categorical?
         # or at least, convert_dtypes(dtype_backend='pyarrow') doesn't
         # convert to it?
         return "category"
-    if isinstance_or_issubclass(dtype, dtypes.Datetime):
+    if dtype == dtypes.Datetime:
         # TODO(Unassigned): different time units and time zones
         if dtype_backend == "pyarrow-nullable":
             return "timestamp[ns][pyarrow]"
         return "datetime64[ns]"
-    if isinstance_or_issubclass(dtype, dtypes.Duration):
+    if dtype == dtypes.Duration:
         # TODO(Unassigned): different time units and time zones
         if dtype_backend == "pyarrow-nullable":
             return "duration[ns][pyarrow]"
         return "timedelta64[ns]"
-    if isinstance_or_issubclass(dtype, dtypes.Date):
+    if dtype == dtypes.Date:
         if dtype_backend == "pyarrow-nullable":
             return "date32[pyarrow]"
         msg = "Date dtype only supported for pyarrow-backed data types in pandas"
         raise NotImplementedError(msg)
-    if isinstance_or_issubclass(dtype, dtypes.Enum):
+    if dtype == dtypes.Enum:
         msg = "Converting to Enum is not (yet) supported"
-        raise NotImplementedError(msg)
+        pd = get_pandas()
+        dtype = cast(dtypes.Enum, dtype)
+        return pd.CategoricalDtype(dtype._categories, ordered=True)
     msg = f"Unknown dtype: {dtype}"  # pragma: no cover
     raise AssertionError(msg)
 

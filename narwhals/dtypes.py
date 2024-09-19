@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from typing import Iterable
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -80,7 +81,10 @@ class Duration(TemporalType): ...
 class Categorical(DType): ...
 
 
-class Enum(DType): ...
+class Enum(DType):
+    # this is unstable in polars, and here as well
+    def __init__(self, categories: Iterable[str] | None = None):
+        self._categories = categories
 
 
 class Date(TemporalType): ...
