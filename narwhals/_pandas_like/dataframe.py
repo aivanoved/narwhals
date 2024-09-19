@@ -9,8 +9,8 @@ from typing import Sequence
 from typing import overload
 
 from narwhals._expression_parsing import evaluate_into_exprs
-from narwhals._pandas_like.expr import PandasLikeExpr
 from narwhals._pandas_like.utils import broadcast_series
+from narwhals._pandas_like.utils import create_df_from_native_series
 from narwhals._pandas_like.utils import create_native_series
 from narwhals._pandas_like.utils import horizontal_concat
 from narwhals._pandas_like.utils import translate_dtype
@@ -132,7 +132,7 @@ class PandasLikeDataFrame:
             from narwhals._pandas_like.series import PandasLikeSeries
 
             return PandasLikeSeries(
-                self._native_frame.loc[:, item],
+                self._native_frame[item],
                 implementation=self._implementation,
                 backend_version=self._backend_version,
             )
@@ -201,7 +201,7 @@ class PandasLikeDataFrame:
             is_numpy_array(item) and item.ndim == 1
         ):
             if isinstance(item, Sequence) and all(isinstance(x, str) for x in item):
-                return self._from_native_frame(self._native_frame.loc[:, item])
+                return self._from_native_frame(self._native_frame[item])
             return self._from_native_frame(self._native_frame.iloc[item])
 
         else:  # pragma: no cover
@@ -259,13 +259,13 @@ class PandasLikeDataFrame:
     ) -> Self:
         if exprs and all(isinstance(x, str) for x in exprs) and not named_exprs:
             # This is a simple slice => fastpath!
-            return self._from_native_frame(self._native_frame.loc[:, list(exprs)])
+            return self._from_native_frame(self._native_frame[list(exprs)])
         new_series = evaluate_into_exprs(self, *exprs, **named_exprs)
         if not new_series:
             # return empty dataframe, like Polars does
             return self._from_native_frame(self._native_frame.__class__())
         new_series = broadcast_series(new_series)
-        df = horizontal_concat(
+        df = create_df_from_native_series(
             new_series,
             implementation=self._implementation,
             backend_version=self._backend_version,
@@ -326,54 +326,25 @@ class PandasLikeDataFrame:
         if not new_columns and len(self) == 0:
             return self
 
-        # If the inputs are all Expressions which return full columns
-        # (as opposed to scalars), we can use a fast path (concat, instead of assign).
-        # We can't use the fastpath if any input is not an expression (e.g.
-        # if it's a Series) because then we might be changing its flags.
-        # See `test_memmap` for an example of where this is necessary.
-        fast_path = (
-            all(len(s) > 1 for s in new_columns)
-            and all(isinstance(x, PandasLikeExpr) for x in exprs)
-            and all(isinstance(x, PandasLikeExpr) for (_, x) in named_exprs.items())
-        )
+        df_dict = {col: self._native_frame[col] for col in self._native_frame}
+        add_dict = {s.name: s._native_series for s in new_columns}
+        df = type(self._native_frame)(df_dict | add_dict, index=index)
 
-        if fast_path:
-            new_column_name_to_new_column_map = {s.name: s for s in new_columns}
-            to_concat = []
-            # Make sure to preserve column order
-            for name in self._native_frame.columns:
-                if name in new_column_name_to_new_column_map:
-                    to_concat.append(
-                        validate_dataframe_comparand(
-                            index, new_column_name_to_new_column_map.pop(name)
-                        )
-                    )
-                else:
-                    to_concat.append(self._native_frame.loc[:, name])
-            to_concat.extend(
-                validate_dataframe_comparand(index, new_column_name_to_new_column_map[s])
-                for s in new_column_name_to_new_column_map
-            )
-
-            df = horizontal_concat(
-                to_concat,
-                implementation=self._implementation,
-                backend_version=self._backend_version,
-            )
-        else:
-            df = self._native_frame.copy(deep=False)
-            for s in new_columns:
-                df[s.name] = validate_dataframe_comparand(index, s)
         return self._from_native_frame(df)
 
     def rename(self, mapping: dict[str, str]) -> Self:
         return self._from_native_frame(self._native_frame.rename(columns=mapping))
 
     def drop(self: Self, columns: list[str], strict: bool) -> Self:  # noqa: FBT001
+        index = self._native_frame.index
         to_drop = parse_columns_to_drop(
             compliant_frame=self, columns=columns, strict=strict
         )
-        return self._from_native_frame(self._native_frame.drop(columns=to_drop))
+        df_dict = {col: self._native_frame[col] for col in self._native_frame}
+        for drop in to_drop:
+            df_dict.pop(drop)
+        df = type(self._native_frame)(df_dict, index=index)
+        return self._from_native_frame(df)
 
     # --- transform ---
     def sort(
@@ -589,7 +560,7 @@ class PandasLikeDataFrame:
             # TODO(Unassigned): should this return narwhals series?
             return {
                 col: PandasLikeSeries(
-                    self._native_frame.loc[:, col],
+                    self._native_frame[col],
                     implementation=self._implementation,
                     backend_version=self._backend_version,
                 )

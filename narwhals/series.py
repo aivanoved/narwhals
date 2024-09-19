@@ -2367,6 +2367,9 @@ class Series:
         """
         return self._from_compliant_series(self._compliant_series.mode())
 
+    def to_physical(self):
+        return self._from_compliant_series(self._compliant_series.to_physical())
+
     @property
     def str(self) -> SeriesStringNamespace:
         return SeriesStringNamespace(self)
